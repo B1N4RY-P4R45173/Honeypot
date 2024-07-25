@@ -60,5 +60,8 @@ Verify that the server key files are generated and available in the script's dir
 
 Check that the honeypot is running and listening on the correct port.
 
+# Known Issues
+-> Problems/ Issues handling commands and setting up PTY. 
+
 # License
 This project is licensed under the MIT License.
