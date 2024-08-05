@@ -4,8 +4,8 @@ import threading
 import logging
 import os
 import sys
-# from paramiko.py3compat import u
-
+import pty
+import subprocess
 
 # Constants
 PORT = 2200
@@ -39,95 +39,38 @@ class SSHServer(paramiko.ServerInterface):
         self.event.set()
         return True
 
-    def check_channel_pty_request(
-        self, channel, term, width, height, pixelwidth, pixelheight, modes
-    ):
+    def check_channel_pty_request(self, channel, term, width, height, pixelwidth, pixelheight, modes):
         return True
 
-def decode_unicode_or_bytes(s, encoding='utf8'):
-    """ decodes bytes or unicode to unicode"""
-    if isinstance(s, str):
-        return s
-    elif isinstance(s, bytes):
-        return s.decode(encoding)
-    raise TypeError("{!r} is not unicode or byte".format(s))
-
-
 def interactive_shell(chan):
-    if has_termios:
-        posix_shell(chan)
-    else:
-        windows_shell(chan)
+    chan.send("Welcome to the SSH server! Type 'exit' to disconnect.\r\n$ ")
 
-def posix_shell(chan):
-    import select
-    import termios
-    import tty
-
-    oldtty = termios.tcgetattr(sys.stdin)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        tty.setcbreak(sys.stdin.fileno())
-        chan.settimeout(0.0)
-
+    while True:
+        command = ""
         while True:
-            r, w, e = select.select([chan, sys.stdin], [], [])
-            if chan in r:
-                try:
-                    x = decode_unicode_or_bytes(chan.recv(1024))
-                    if len(x) == 0:
-                        sys.stdout.write("\r\n*** EOF\r\n")
-                        break
-                    sys.stdout.write(x)
-                    sys.stdout.flush()
-                except socket.timeout:
-                    pass
-            if sys.stdin in r:
-                x = sys.stdin.read(1)
-                if len(x) == 0:
-                    break
-                chan.send(x)
-
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, oldtty)
-
-def windows_shell(chan):
-    import threading
-
-    sys.stdout.write(
-        "Line-buffered terminal emulation. Press F6 or ^Z to send EOF.\r\n\r\n"
-    )
-
-    def writeall(sock):
-        while True:
-            data = sock.recv(256)
-            if not data:
-                sys.stdout.write("\r\n*** EOF ***\r\n\r\n")
-                sys.stdout.flush()
+            data = chan.recv(1).decode('utf-8')
+            if data == '\r':  # Enter key
                 break
-            sys.stdout.write(data.decode())  # Decode bytes to string
-            sys.stdout.flush()
-
-    writer = threading.Thread(target=writeall, args=(chan,))
-    writer.start()
-
-    try:
-        while True:
-            d = sys.stdin.read(1)
-            if not d:
-                break
-            chan.send(d.encode())  # Encode string to bytes
-    except EOFError:
-        pass
-
-
-# Check if the system has termios module (Unix-like) or not (Windows)
-try:
-    import termios
-    import tty
-    has_termios = True
-except ImportError:
-    has_termios = False
+            elif data == '\x08' or data == '\x7f':  # Backspace key
+                if command:
+                    command = command[:-1]
+                    chan.send('\r\n' + ' ' * len(command) + '\r' + '$ ' + command)
+            else:
+                command += data
+                chan.send(data)
+        
+        chan.send('\r\n')
+        
+        if command.lower() == 'exit':
+            chan.send("Goodbye!\r\n")
+            break
+        if command:
+            try:
+                output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
+                chan.send(output + b'\r\n')
+            except subprocess.CalledProcessError as e:
+                chan.send(f"Error: {e.output.decode('utf-8')}\r\n".encode('utf-8'))
+        chan.send("$ ")
 
 def handle_connection(client_sock):
     try:
@@ -147,8 +90,6 @@ def handle_connection(client_sock):
         channel = transport.accept(20)
         if channel is None:
             raise Exception("No channel.")
-        
-        channel.send("Welcome to the SSH server! Type 'exit' to disconnect.\r\n")
         
         interactive_shell(channel)
                 
@@ -185,3 +126,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
