@@ -66,8 +66,11 @@ def interactive_shell(chan):
             break
         if command:
             try:
-                output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-                chan.send(output + b'\r\n')
+                output = subprocess.check_output(command, shell=True, executable='/bin/bash', stderr=subprocess.STDOUT)
+                output_lines = output.decode('utf-8').split('\n')
+                for line in output_lines:
+                    chan.send(line + '\r\n')
+                chan.send('\r\n')  # Send an extra newline after the output
             except subprocess.CalledProcessError as e:
                 chan.send(f"Error: {e.output.decode('utf-8')}\r\n".encode('utf-8'))
         chan.send("$ ")
