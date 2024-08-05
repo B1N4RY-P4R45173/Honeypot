@@ -32,7 +32,9 @@ class SSHServer(paramiko.ServerInterface):
     def check_auth_password(self, username, password):
         if username == self.username and password == self.password:
             self.authenticated = True
+            logging.info(f"User {username} authenticated successfully")
             return paramiko.AUTH_SUCCESSFUL
+        logging.info(f"Authentication failed for user {username}")
         return paramiko.AUTH_FAILED
 
     def check_channel_shell_request(self, channel):
@@ -63,8 +65,10 @@ def interactive_shell(chan):
         
         if command.lower() == 'exit':
             chan.send("Goodbye!\r\n")
+            logging.info("User exited")
             break
         if command:
+            logging.info(f"User executed command: {command}")
             try:
                 output = subprocess.check_output(command, shell=True, executable='/bin/bash', stderr=subprocess.STDOUT)
                 output_lines = output.decode('utf-8').split('\n')
@@ -73,6 +77,7 @@ def interactive_shell(chan):
                 chan.send('\r\n')  # Send an extra newline after the output
             except subprocess.CalledProcessError as e:
                 chan.send(f"Error: {e.output.decode('utf-8')}\r\n".encode('utf-8'))
+                logging.error(f"Error executing command: {command} - {e.output.decode('utf-8')}")
         chan.send("$ ")
 
 def handle_connection(client_sock):
@@ -97,7 +102,7 @@ def handle_connection(client_sock):
         interactive_shell(channel)
                 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logging.error(f"Error: {str(e)}")
     finally:
         transport.close()
         client_sock.close()
@@ -129,4 +134,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
