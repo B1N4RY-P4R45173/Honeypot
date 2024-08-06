@@ -62,7 +62,14 @@ Verify that the server key files are generated and available in the script's dir
 Check that the honeypot is running and listening on the correct port.
 
 # Known Issues
-None 
+
+---
+
+**Status:** _None_
+
+---
+
+Everything is running smoothly! 🚀
 
 # Notes
 - This project was only built to understand and apply how a honeypot works, a real world application might need many more optimizations and changes.
