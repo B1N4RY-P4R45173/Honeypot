@@ -8,6 +8,7 @@ This project implements a basic SSH honeypot in Python using the `paramiko` libr
 - Password authentication
 - Command execution with output returned to the client
 - Logging of all commands executed by the user
+- Fake File system with the help of chroot in linux
 
 ## Requirements
 
@@ -38,7 +39,7 @@ This will create two files: server_key (private key) and server_key.pub (public 
 Run the SSH honeypot script:
 
 ```bash
-python ssh_honeypot.py
+python ssh_server.py
 ```
 
 ### 4. Connect to the SSH Honeypot
@@ -51,7 +52,7 @@ ssh admin@localhost -p 2200
 The default username is `admin` and the password is `password`.
 
 # Logging
-All commands executed by the user are logged in honeypot.log for monitoring and analysis.
+All commands executed by the user are logged in ssh_server.log for monitoring and analysis.
 
 # Troubleshooting
 Ensure the paramiko library is installed.
@@ -61,7 +62,10 @@ Verify that the server key files are generated and available in the script's dir
 Check that the honeypot is running and listening on the correct port.
 
 # Known Issues
--> Problems/ Issues handling commands and setting up PTY. 
+None 
 
+# Notes
+- This project was only built to understand and apply how a honeypot works, a real world application might need many more optimizations and changes.
+- That being said, make sure you understand the security risks before using this project in your application.
 # License
 This project is licensed under the MIT License.
