@@ -3,8 +3,6 @@ import socket
 import threading
 import logging
 import os
-import sys
-import pty
 import subprocess
 
 # Constants
@@ -13,6 +11,7 @@ USERNAME = 'admin'
 PASSWORD = 'password'
 PRIVATE_KEY_PATH = 'server_key'
 LOG_FILE = 'ssh_server.log'
+CHROOT_DIR = '/var/chroot/ssh'  # Adjust to your chroot directory
 
 # Set up logging
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,7 +44,7 @@ class SSHServer(paramiko.ServerInterface):
         return True
 
 def interactive_shell(chan):
-    chan.send("Welcome to the SSH server! Type 'exit' to disconnect.\r\n$ ")
+    chan.send("Welcome to the SSH honeypot! Type 'exit' to disconnect.\r\n$ ")
 
     while True:
         command = ""
@@ -70,23 +69,31 @@ def interactive_shell(chan):
         if command:
             logging.info(f"User executed command: {command}")
             try:
-                output = subprocess.check_output(command, shell=True, executable='/bin/bash', stderr=subprocess.STDOUT)
-                output_lines = output.decode('utf-8').split('\n')
-                for line in output_lines:
+                # Execute command in chroot environment
+                proc = subprocess.Popen(
+                    ["chroot", CHROOT_DIR, "bash", "-c", command],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                stdout, stderr = proc.communicate()
+                
+                # Send output and error to channel
+                for line in stdout.splitlines():
                     chan.send(line + '\r\n')
+                for line in stderr.splitlines():
+                    chan.send("Error: " + line + '\r\n')
                 chan.send('\r\n')  # Send an extra newline after the output
-            except subprocess.CalledProcessError as e:
-                chan.send(f"Error: {e.output.decode('utf-8')}\r\n".encode('utf-8'))
-                logging.error(f"Error executing command: {command} - {e.output.decode('utf-8')}")
+            except Exception as e:
+                chan.send(f"Error: {str(e)}\r\n".encode('utf-8'))
+                logging.error(f"Error executing command: {command} - {str(e)}")
         chan.send("$ ")
 
 def handle_connection(client_sock):
     try:
         transport = paramiko.Transport(client_sock)
-        server_key = paramiko.RSAKey(filename="server_key")
+        server_key = paramiko.RSAKey(filename=PRIVATE_KEY_PATH)
         transport.add_server_key(server_key)
         
-        ssh_server = SSHServer(username="admin", password="password")
+        ssh_server = SSHServer(username=USERNAME, password=PASSWORD)
         
         transport.start_server(server=ssh_server)
         
